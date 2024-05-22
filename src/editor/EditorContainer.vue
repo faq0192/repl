@@ -40,6 +40,7 @@ watch(showMessage, () => {
       :value="store.activeFile.code"
       :filename="store.activeFile.filename"
       @change="onChange"
+      :store="store"
     />
     <Message v-show="showMessage" :err="store.errors[0]" />
     <MessageToggle v-model="showMessage" />

@@ -13,7 +13,8 @@ import {
 import * as monaco from 'monaco-editor-core'
 import { initMonaco } from './env'
 import { getOrCreateModel } from './utils'
-import { type EditorMode, injectKeyStore } from '../types'
+import { type EditorMode } from '../types'
+import { ReplStore } from 'src/store'
 
 const props = withDefaults(
   defineProps<{
@@ -21,11 +22,15 @@ const props = withDefaults(
     value?: string
     readonly?: boolean
     mode?: EditorMode
+    store: ReplStore
+    theme?: 'dark' | 'light'
   }>(),
   {
     readonly: false,
     value: '',
     mode: undefined,
+    store: undefined,
+    theme: 'dark',
   },
 )
 
@@ -36,13 +41,13 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLDivElement>()
 const ready = ref(false)
 const editor = shallowRef<monaco.editor.IStandaloneCodeEditor>()
-const store = inject(injectKeyStore)!
+// const store = inject(injectKeyStore)!
 
-initMonaco(store)
+initMonaco(props.store)
 
 const lang = computed(() => (props.mode === 'css' ? 'css' : 'javascript'))
 
-const replTheme = inject<Ref<'dark' | 'light'>>('theme')!
+const replTheme = props.theme ? props.theme : 'dark'
 onMounted(async () => {
   const theme = await import('./highlight').then((r) => r.registerHighlighter())
   ready.value = true
@@ -54,11 +59,11 @@ onMounted(async () => {
 
   const editorInstance = monaco.editor.create(containerRef.value, {
     ...(props.readonly
-      ? { value: props.value, language: lang.value }
+      ? { value: props.value || '', language: lang.value }
       : { model: null }),
     fontSize: 13,
     tabSize: 2,
-    theme: replTheme.value === 'light' ? theme.light : theme.dark,
+    theme: replTheme === 'light' ? theme.light : theme.dark,
     readOnly: props.readonly,
     automaticLayout: true,
     scrollBeyondLastLine: false,
@@ -112,7 +117,7 @@ onMounted(async () => {
       () => props.filename,
       (_, oldFilename) => {
         if (!editorInstance) return
-        const file = store.files[props.filename]
+        const file = props.store.files[props.filename]
         if (!file) return null
         const model = getOrCreateModel(
           monaco.Uri.parse(`file:///${props.filename}`),
@@ -120,7 +125,7 @@ onMounted(async () => {
           file.code,
         )
 
-        const oldFile = oldFilename ? store.files[oldFilename] : null
+        const oldFile = oldFilename ? props.store.files[oldFilename] : null
         if (oldFile) {
           oldFile.editorViewState = editorInstance.saveViewState()
         }
@@ -142,13 +147,6 @@ onMounted(async () => {
 
   editorInstance.onDidChangeModelContent(() => {
     emit('change', editorInstance.getValue())
-  })
-
-  // update theme
-  watch(replTheme, (n) => {
-    editorInstance.updateOptions({
-      theme: n === 'light' ? theme.light : theme.dark,
-    })
   })
 })
 
